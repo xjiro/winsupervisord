@@ -319,8 +319,8 @@ def gui_thread():
         import webbrowser
         
         root = tk.Tk()
-        root.title("Windows Supervisord")
-        root.geometry("900x600")
+        root.title("winsupervisord - Process Manager")
+        root.geometry("600x600")
         
         selected_process = {'job': None, 'item_id': None}
         
@@ -469,9 +469,9 @@ def gui_thread():
         main_frame = ttk.Frame(root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Title
-        title_label = ttk.Label(main_frame, text="Running Processes", font=("Arial", 14, "bold"))
-        title_label.pack(pady=5)
+        # Configure grid weights so tree expands but buttons stay visible
+        main_frame.grid_rowconfigure(0, weight=1)  # Tree gets extra space
+        main_frame.grid_rowconfigure(1, weight=0)  # Buttons only get what they need
         
         # Tree view for processes
         columns = ('Job', 'PID', 'Status', 'Restarts', 'Command')
@@ -491,11 +491,11 @@ def gui_thread():
         tree.heading('Command', text='Command', anchor=tk.W)
         
         tree.bind('<<TreeviewSelect>>', on_select)
-        tree.pack(fill=tk.BOTH, expand=True, pady=5)
+        tree.grid(row=0, column=0, sticky='nsew', pady=5)
         
         # Button frame
         button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=5)
+        button_frame.grid(row=1, column=0, sticky='ew', pady=5)
         
         start_btn = ttk.Button(button_frame, text="Start", command=start_process, width=12)
         start_btn.pack(side=tk.LEFT, padx=5)
