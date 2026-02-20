@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Winsupervisord</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .controls-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            align-items: center;
+        }
+
+        .controls-bar label {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .controls-bar input[type="checkbox"] {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            min-width: 100px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-start {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-start:hover:not(:disabled) {
+            background: #45a049;
+        }
+
+        .btn-stop {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-stop:hover:not(:disabled) {
+            background: #da190b;
+        }
+
+        .btn-restart {
+            background: #FF9800;
+            color: white;
+        }
+
+        .btn-restart:hover:not(:disabled) {
+            background: #e68900;
+        }
+
+        .btn-log {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-log:hover:not(:disabled) {
+            background: #0b7dda;
+        }
+
+        .btn-refresh {
+            background: #9C27B0;
+            color: white;
+        }
+
+        .btn-refresh:hover {
+            background: #7b1fa2;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        thead {
+            background: #667eea;
+            color: white;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        tbody tr {
+            transition: background 0.3s ease;
+        }
+
+        tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-running {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .status-dead {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+
+        .command-cell {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #666;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .modal-header h2 {
+            color: #333;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 2em;
+            cursor: pointer;
+            color: #666;
+            min-width: auto;
+            padding: 0;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .log-content {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 500px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 4px;
+            color: white;
+            font-weight: 600;
+            max-width: 400px;
+            animation: slideIn 0.3s ease;
+            z-index: 2000;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .notification.success {
+            background: #4CAF50;
+        }
+
+        .notification.error {
+            background: #f44336;
+        }
+
+        .notification.info {
+            background: #2196F3;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Windows Supervisord</h1>
+        </header>
+
+        <div class="controls-bar">
+            <button class="btn-start" onclick="startProcess()">Start</button>
+            <button class="btn-stop" onclick="stopProcess()">Stop</button>
+            <button class="btn-restart" onclick="restartProcess()">Restart</button>
+            <button class="btn-log" onclick="viewLog()">View Log</button>
+            <button class="btn-refresh" onclick="refreshStatus()">Refresh Now</button>
+            <label style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="autoRefreshCheckbox" onchange="toggleAutoRefresh()">
+                <span>Auto Refresh</span>
+            </label>
+        </div>
+
+        <table id="processTable">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"></th>
+                    <th style="width: 150px;">Job Name</th>
+                    <th style="width: 80px;">PID</th>
+                    <th style="width: 100px;">Status</th>
+                    <th style="width: 80px;">Restarts</th>
+                    <th>Command</th>
+                </tr>
+            </thead>
+            <tbody id="processList">
+                <tr><td colspan="6" class="loading"><span class="spinner"></span> Loading...</td></tr>
+            </tbody>
+        </table>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <p>No processes are currently running.</p>
+        </div>
+    </div>
+
+    <!-- Log Modal -->
+    <div id="logModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="logTitle">Log - </h2>
+                <button class="close-btn" onclick="closeLog()">&times;</button>
+            </div>
+            <div class="log-content" id="logContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedJob = null;
+        let autoRefreshInterval = null;
+        let autoRefreshEnabled = false;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshStatus();
+            // Auto-refresh is disabled by default
+        });
+
+        function toggleAutoRefresh() {
+            const checkbox = document.getElementById('autoRefreshCheckbox');
+            autoRefreshEnabled = checkbox.checked;
+            
+            if (autoRefreshEnabled) {
+                // Start auto-refresh every 2 seconds
+                autoRefreshInterval = setInterval(refreshStatus, 2000);
+            } else {
+                // Stop auto-refresh
+                if (autoRefreshInterval !== null) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+            }
+        }
+
+        function refreshStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateProcessTable(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching status:', error);
+                    showNotification('Error fetching status', 'error');
+                });
+        }
+
+        function updateProcessTable(processes) {
+            const tbody = document.getElementById('processList');
+            const emptyState = document.getElementById('emptyState');
+            const table = document.getElementById('processTable');
+
+            // Check if there are any processes
+            if (Object.keys(processes).length === 0) {
+                tbody.innerHTML = '';
+                table.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            table.style.display = 'table';
+            emptyState.style.display = 'none';
+
+            // Sort processes by name
+            const sortedJobs = Object.keys(processes).sort();
+
+            let html = '';
+            sortedJobs.forEach(jobName => {
+                const proc = processes[jobName];
+                const statusClass = proc.alive ? 'status-running' : 'status-dead';
+                const statusText = proc.alive ? 'Running' : 'Dead';
+                const isSelected = jobName === selectedJob ? 'checked' : '';
+
+                html += `
+                    <tr>
+                        <td><input type="radio" name="jobSelect" value="${escapeHtml(jobName)}" ${isSelected} onchange="selectJob('${jobName}')"></td>
+                        <td>${escapeHtml(jobName)}</td>
+                        <td>${proc.pid}</td>
+                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        <td><strong>${proc.restart_count}</strong></td>
+                        <td class="command-cell" title="${escapeHtml(proc.command)}">${escapeHtml(proc.command)}</td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function selectJob(jobName) {
+            selectedJob = jobName;
+        }
+
+        function startProcess() {
+            if (!selectedJob) {
+                showNotification('Please select a process first', 'info');
+                return;
+            }
+
+            const jobConfig = selectedJob.split(':')[0]; // Get base job name
+            
+            fetch('/start_job', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ job_name: jobConfig })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showNotification(`Started job '${jobConfig}'`, 'success');
+                refreshStatus();
+            })
+            .catch(error => {
+                showNotification(`Error starting job: ${error}`, 'error');
+            });
+        }
+
+        function stopProcess() {
+            if (!selectedJob) {
+                showNotification('Please select a process first', 'info');
+                return;
+            }
+
+            fetch('/stop_job', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ job_name: selectedJob })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showNotification(`Stopped job '${selectedJob}'`, 'success');
+                selectedJob = null;
+                refreshStatus();
+            })
+            .catch(error => {
+                showNotification(`Error stopping job: ${error}`, 'error');
+            });
+        }
+
+        function restartProcess() {
+            if (!selectedJob) {
+                showNotification('Please select a process first', 'info');
+                return;
+            }
+
+            fetch('/restart_job', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ job_name: selectedJob })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showNotification(`Restarted job '${selectedJob}'`, 'success');
+                refreshStatus();
+            })
+            .catch(error => {
+                showNotification(`Error restarting job: ${error}`, 'error');
+            });
+        }
+
+        function viewLog() {
+            if (!selectedJob) {
+                showNotification('Please select a process first', 'info');
+                return;
+            }
+
+            fetch(`/view_log/${selectedJob}`)
+                .then(response => response.text())
+                .then(logContent => {
+                    document.getElementById('logTitle').textContent = `Log - ${selectedJob}`;
+                    document.getElementById('logContent').textContent = logContent;
+                    document.getElementById('logModal').classList.add('show');
+                })
+                .catch(error => {
+                    showNotification(`Error fetching log: ${error}`, 'error');
+                });
+        }
+
+        function closeLog() {
+            document.getElementById('logModal').classList.remove('show');
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('logModal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeLog();
+            }
+        });
+    </script>
+</body>
+</html>

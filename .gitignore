@@ -1,0 +1,8 @@
+build
+jobs
+logs
+dist
+example_job.yaml
+winsupervisor_config.yaml
+winsupervisord.spec
+__pycache__
