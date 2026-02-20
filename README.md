@@ -45,7 +45,7 @@ autorestart: true
 
 ## Web API
 
-The http interface is disabled by default. When enabled, if either username or password is not set, there's no HTTP basic auth. Visit `/` (http://localhost:5000) to use a form similar to linux supervisord's inet_http_server.
+The web interface is disabled by default. When enabled, if either username or password is not set, there's no http basic auth. Visit `/` (http://localhost:5000) to use a form similar to linux supervisord's inet_http_server.
 
 - `GET /` - Web UI
 - `POST /start_job` - Start a job
