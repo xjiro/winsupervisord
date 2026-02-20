@@ -6,7 +6,6 @@ import time
 import signal
 import sys
 import argparse
-from pathlib import Path
 from functools import wraps
 
 os.makedirs('jobs', exist_ok=True)
@@ -64,7 +63,7 @@ def get_config():
 config = get_config()
 
 # Parse command line arguments
-parser = argparse.ArgumentParser(description='Windows Supervisord Service')
+parser = argparse.ArgumentParser(description='Winsupervisord Service')
 parser.add_argument('-gui', action='store_true', help='Enable GUI mode')
 parser.add_argument('-nogui', action='store_true', help='Disable GUI mode')
 args = parser.parse_args()
@@ -128,6 +127,42 @@ def kill_process_tree(proc_info):
         print(f"Error killing process tree: {e}")
 
 
+def get_job_instance_name(job_name, numproc_index, numprocs):
+    """Get the job instance name for a job with optional multi-process support."""
+    if numprocs > 1:
+        return f"{job_name}:{numproc_index}"
+    return job_name
+
+
+def close_process_logfile(proc_info):
+    """Safely close a process's log file handle."""
+    if 'log_handle' in proc_info:
+        try:
+            proc_info['log_handle'].close()
+        except:
+            pass
+
+
+def stop_process_instance(job_instance, prevent_restart=True):
+    """Stop a process instance and optionally prevent auto-restart."""
+    if job_instance not in running_processes:
+        return False, "Job not found"
+    
+    proc_info = running_processes[job_instance]
+    
+    try:
+        if proc_info['process'].poll() is None:
+            # Process is running, kill it
+            kill_process_tree(proc_info)
+            close_process_logfile(proc_info)
+            if prevent_restart:
+                proc_info['stopped'] = True
+            return True, "Process stopped"
+        else:
+            return False, "Process is not running"
+    except Exception as e:
+        return False, str(e)
+
 
 def start_job(config_name, numproc_index=0):
     """Start a job and track its PID."""
@@ -166,9 +201,7 @@ def start_job(config_name, numproc_index=0):
                 directory = '.'
 
         # Determine job instance name for multi-process jobs
-        job_instance_name = config_name
-        if numprocs > 1:
-            job_instance_name = f"{config_name}:{numproc_index}"
+        job_instance_name = get_job_instance_name(config_name, numproc_index, numprocs)
 
         log_file = f'logs/{job_instance_name}.log'
 
@@ -286,8 +319,8 @@ def gui_thread():
         import webbrowser
         
         root = tk.Tk()
-        root.title("Windows Supervisord")
-        root.geometry("900x600")
+        root.title("Winsupervisord - Process Manager")
+        root.geometry("600x600")
         
         selected_process = {'job': None, 'item_id': None}
         
@@ -343,7 +376,7 @@ def gui_thread():
                 
                 # Try to start all instances of this job
                 for i in range(numprocs):
-                    job_instance_name = f"{job_name}:{i}" if numprocs > 1 else job_name
+                    job_instance_name = get_job_instance_name(job_name, i, numprocs)
                     if job_instance_name in running_processes or (job_name not in running_processes and i == 0):
                         # Clear stopped flag for previously stopped jobs
                         if job_instance_name in running_processes:
@@ -361,28 +394,12 @@ def gui_thread():
                 return
             
             job_instance = selected_process['job']
-            try:
-                if job_instance in running_processes:
-                    proc_info = running_processes[job_instance]
-                    if proc_info['process'].poll() is None:
-                        try:
-                            kill_process_tree(proc_info)
-                        except Exception as kill_error:
-                            print(f"Error killing process: {kill_error}")
-                        # Mark as stopped to prevent auto-restart
-                        proc_info['stopped'] = True
-                        if 'log_handle' in proc_info:
-                            try:
-                                proc_info['log_handle'].close()
-                            except:
-                                pass
-                        refresh_process_list()
-                    else:
-                        messagebox.showwarning("Warning", f"Process '{job_instance}' is not running")
-                else:
-                    messagebox.showwarning("Warning", f"Process '{job_instance}' not found")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to stop process: {e}")
+            success, message = stop_process_instance(job_instance, prevent_restart=True)
+            
+            if success:
+                refresh_process_list()
+            else:
+                messagebox.showwarning("Warning", message)
         
         def restart_process():
             """Restart a selected process."""
@@ -403,11 +420,7 @@ def gui_thread():
                             kill_process_tree(proc_info)
                         except Exception as kill_error:
                             print(f"Error killing process: {kill_error}")
-                    if 'log_handle' in proc_info:
-                        try:
-                            proc_info['log_handle'].close()
-                        except:
-                            pass
+                    close_process_logfile(proc_info)
                     
                     # Clear the stopped flag so it can be restarted
                     proc_info['stopped'] = False
@@ -416,7 +429,7 @@ def gui_thread():
                     start_job(config_name, numproc_index)
                     refresh_process_list()
                 else:
-                    pass
+                    messagebox.showwarning("Warning", f"Process '{job_instance}' not found")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to restart process: {e}")
         
@@ -456,9 +469,9 @@ def gui_thread():
         main_frame = ttk.Frame(root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Title
-        title_label = ttk.Label(main_frame, text="Running Processes", font=("Arial", 14, "bold"))
-        title_label.pack(pady=5)
+        # Configure grid weights so tree expands but buttons stay visible
+        main_frame.grid_rowconfigure(0, weight=1)  # Tree gets extra space
+        main_frame.grid_rowconfigure(1, weight=0)  # Buttons only get what they need
         
         # Tree view for processes
         columns = ('Job', 'PID', 'Status', 'Restarts', 'Command')
@@ -478,11 +491,11 @@ def gui_thread():
         tree.heading('Command', text='Command', anchor=tk.W)
         
         tree.bind('<<TreeviewSelect>>', on_select)
-        tree.pack(fill=tk.BOTH, expand=True, pady=5)
+        tree.grid(row=0, column=0, sticky='nsew', pady=5)
         
         # Button frame
         button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill=tk.X, pady=5)
+        button_frame.grid(row=1, column=0, sticky='ew', pady=5)
         
         start_btn = ttk.Button(button_frame, text="Start", command=start_process, width=12)
         start_btn.pack(side=tk.LEFT, padx=5)
@@ -641,7 +654,7 @@ def flask_thread():
             
             # Start all instances of this job
             for i in range(numprocs):
-                job_instance_name = f"{job_name}:{i}" if numprocs > 1 else job_name
+                job_instance_name = get_job_instance_name(job_name, i, numprocs)
                 # Clear stopped flag for previously stopped jobs
                 if job_instance_name in running_processes:
                     running_processes[job_instance_name]['stopped'] = False
@@ -662,25 +675,12 @@ def flask_thread():
             if not job_instance:
                 return {'status': 'error', 'message': 'job_name is required'}, 400
             
-            if job_instance in running_processes:
-                proc_info = running_processes[job_instance]
-                if proc_info['process'].poll() is None:
-                    try:
-                        kill_process_tree(proc_info)
-                    except Exception as kill_error:
-                        print(f"Error killing process: {kill_error}")
-                    # Mark as stopped to prevent auto-restart
-                    proc_info['stopped'] = True
-                    if 'log_handle' in proc_info:
-                        try:
-                            proc_info['log_handle'].close()
-                        except:
-                            pass
-                    return {'status': 'success', 'message': f'Stopped job {job_instance}'}
-                else:
-                    return {'status': 'error', 'message': f'Process {job_instance} is not running'}, 400
+            success, message = stop_process_instance(job_instance, prevent_restart=True)
+            
+            if success:
+                return {'status': 'success', 'message': f'Stopped job {job_instance}'}
             else:
-                return {'status': 'error', 'message': f'Job {job_instance} not found'}, 404
+                return {'status': 'error', 'message': message}, 400
         except Exception as e:
             return {'status': 'error', 'message': str(e)}, 500
 
@@ -706,11 +706,7 @@ def flask_thread():
                         kill_process_tree(proc_info)
                     except Exception as kill_error:
                         print(f"Error killing process: {kill_error}")
-                if 'log_handle' in proc_info:
-                    try:
-                        proc_info['log_handle'].close()
-                    except:
-                        pass
+                close_process_logfile(proc_info)
                 
                 # Clear the stopped flag so it can be restarted and auto-restart will work again
                 proc_info['stopped'] = False

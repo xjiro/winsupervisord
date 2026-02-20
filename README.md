@@ -1,4 +1,4 @@
-# Windows Supervisord
+# Winupervisord
 
 A lightweight Windows process supervisor with an optional web UI and GUI. Manage and monitor long-running applications with automatic restart, log tracking, and HTTP control.
 
